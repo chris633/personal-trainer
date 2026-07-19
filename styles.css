@@ -47,16 +47,27 @@
 
 html, body { margin: 0; padding: 0; height: 100%; overscroll-behavior-y: none; }
 
+/* Solid base so the iOS safe areas (notch, home indicator) match the app. */
+html { background: #f1efe9; }
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
   color: var(--text);
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.45;
+}
+
+/* Full-viewport gradient layer that also covers the safe-area insets. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
   background:
     radial-gradient(115% 75% at 50% -8%, #eef2e8 0%, rgba(238, 242, 232, 0) 55%),
     radial-gradient(90% 60% at 100% 0%, #f6efe4 0%, rgba(246, 239, 228, 0) 55%),
     linear-gradient(180deg, #f3f1ea 0%, #eef0e9 100%);
-  background-attachment: fixed;
-  -webkit-font-smoothing: antialiased;
-  line-height: 1.45;
 }
 
 button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
@@ -224,9 +235,20 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 
 /* Rest day */
 .rest { text-align: center; padding: 34px 22px; }
-.rest .mark { margin: 0 auto 6px; width: 66px; height: 66px; }
-.rest h1 { font-size: 22px; margin: 10px 0 6px; font-weight: 800; }
-.rest p { color: var(--text-dim); font-size: 15px; margin: 0 auto; max-width: 300px; }
+.rest .mark { margin: 0 auto 6px; width: 60px; height: 60px; }
+.rest h1 { font-size: 23px; margin: 10px 0 8px; font-weight: 800; }
+.rest p { color: var(--text-dim); font-size: 15px; margin: 0 auto; max-width: 320px; }
+.rest .rest-quote { font-style: italic; line-height: 1.55; }
+
+/* Day message (work-day lead-in) + shared quote attribution */
+.day-msg { margin: 2px 2px 18px; }
+.day-msg-title { font-size: 24px; font-weight: 850; letter-spacing: -0.015em; color: var(--text); }
+.day-msg-quote { margin-top: 7px; font-size: 15px; line-height: 1.55; color: var(--text-dim); font-style: italic; }
+.qa { display: block; font-style: normal; font-size: 12.5px; color: var(--text-faint); margin-top: 6px; letter-spacing: 0.01em; }
+
+/* Catch-up (make-up a missed session) */
+.sched-row.catchup { border-color: rgba(201, 169, 126, 0.6); }
+.sched-status.makeup { color: var(--sage-deep); font-weight: 750; }
 
 /* Completion banner */
 .done-banner {

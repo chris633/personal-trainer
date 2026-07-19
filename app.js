@@ -15,6 +15,39 @@
   const MARK = '<svg class="mark" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M236 344 L150 250" stroke="#a7b899" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/><path d="M236 344 L378 166" stroke="#869a76" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/><circle cx="236" cy="344" r="27" fill="#869a76"/></svg>';
   const initialOf = (u) => (u && u.name ? u.name.trim().charAt(0).toUpperCase() : '?');
 
+  // Day quotes. One is picked per day (stable through the day), by date.
+  const QUOTES = {
+    work: [
+      { q: 'Discipline is choosing what you want most over what you want now.' },
+      { q: 'Small steps, repeated daily, become big change.' },
+      { q: "You don't have to be extreme, just consistent." },
+      { q: "Show up for the person you're becoming." },
+      { q: 'Motivation gets you started. Habit keeps you going.', a: 'Jim Ryun' },
+      { q: 'Strength grows in the moments you keep going when you thought you could not.' },
+      { q: 'A little progress each day adds up to big results.' },
+      { q: 'Do something today your future self will thank you for.' },
+      { q: 'The work you do now is a gift to the you of next month.' },
+      { q: 'You are always one session away from feeling better.' },
+    ],
+    rest: [
+      { q: 'Rest is not idleness. It is the ground where strength grows back.' },
+      { q: 'Take rest. A field that has rested gives a bountiful crop.', a: 'Ovid' },
+      { q: 'Almost everything works again if you unplug it for a while, including you.', a: 'Anne Lamott' },
+      { q: 'By failing to prepare, you are preparing to fail.', a: 'Benjamin Franklin' },
+      { q: 'The time to repair the roof is when the sun is shining.', a: 'John F. Kennedy' },
+      { q: 'Recovery is where training quietly becomes strength.' },
+      { q: 'You cannot pour from an empty cup. Rest, then rise.' },
+      { q: 'Sometimes the most productive thing you can do is rest.' },
+      { q: 'Sharpen the axe before you cut the tree.' },
+      { q: 'Well-prepared is half done. Today, that means recovering well.' },
+    ],
+  };
+  function pickQuote(kind) {
+    const arr = QUOTES[kind];
+    let h = 0; for (let i = 0; i < TODAY.length; i++) h = (h * 31 + TODAY.charCodeAt(i)) >>> 0;
+    return arr[h % arr.length];
+  }
+
   /* ---------------- State ---------------- */
   const LS = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
@@ -48,6 +81,11 @@
   function shortDate(str) {
     const [y, m, d] = str.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  function daysBetween(a, b) {
+    const [ay, am, ad] = a.split('-').map(Number);
+    const [by, bm, bd] = b.split('-').map(Number);
+    return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
   }
   function sessionFor(dateStr) { return user().sessions.find(s => s.date === dateStr) || null; }
   function isComplete(session, prog = getProgress()) {
@@ -130,27 +168,56 @@
     root.innerHTML = '';
     const session = sessionFor(TODAY);
 
-    if (!session) {
-      // Rest day. Show the next scheduled session too.
-      const next = user().sessions.find(s => s.date > TODAY);
-      const card = el('div', 'card rest');
-      card.innerHTML = `${MARK}
-        <h1>Rest &amp; recover</h1>
-        <p>Rest is where the work settles in. Hydrate, stretch, and take it easy today.</p>`;
-      root.appendChild(card);
-      if (next) {
-        const t = el('div', 'section-title', 'Up next');
-        root.appendChild(t);
-        root.appendChild(scheduleRow(next));
-      }
-      return;
+    if (session) {
+      root.appendChild(workLeadIn());
+      root.appendChild(heroCard(session));
+    } else {
+      root.appendChild(restCard());
     }
 
+    // Make-up: recently missed sessions she can still do today.
+    const missed = missedSessions();
+    if (missed.length) {
+      root.appendChild(el('div', 'section-title', missed.length > 1 ? 'Catch up' : 'Catch up on a missed day'));
+      missed.forEach(s => root.appendChild(catchUpRow(s)));
+    }
+
+    if (!session) {
+      const next = user().sessions.find(s => s.date > TODAY);
+      if (next) {
+        root.appendChild(el('div', 'section-title', 'Up next'));
+        root.appendChild(scheduleRow(next));
+      }
+    }
+
+    if (session && isComplete(session)) showDoneBanner(session, false);
+  }
+
+  function quoteHtml(kind) {
+    const q = pickQuote(kind);
+    return `${q.q}${q.a ? `<span class="qa">${q.a}</span>` : ''}`;
+  }
+
+  function workLeadIn() {
+    const w = el('div', 'day-msg');
+    w.innerHTML = `<div class="day-msg-title">Today you work</div>
+      <div class="day-msg-quote">${quoteHtml('work')}</div>`;
+    return w;
+  }
+
+  function restCard() {
+    const c = el('div', 'card rest');
+    c.innerHTML = `${MARK}
+      <h1>Today you rest</h1>
+      <p class="rest-quote">${quoteHtml('rest')}</p>`;
+    return c;
+  }
+
+  function heroCard(session) {
     const prog = getProgress();
     const total = session.blocks.length;
     const done = completedCount(session, prog);
     const pct = total ? done / total : 0;
-
     const card = el('div', 'card hero');
     card.innerHTML = `
       <div class="hero-top">
@@ -163,14 +230,30 @@
       </div>
       <div class="blocks"></div>
       <div class="done-banner" id="done-banner"></div>`;
-    root.appendChild(card);
-
     const list = $('.blocks', card);
-    session.blocks.forEach(b => {
-      list.appendChild(blockRow(session, b, prog[session.date]?.[b.id]));
-    });
+    session.blocks.forEach(b => list.appendChild(blockRow(session, b, prog[session.date]?.[b.id])));
+    return card;
+  }
 
-    if (isComplete(session, prog)) showDoneBanner(session, false);
+  // Missed sessions from the last two weeks that she can still make up.
+  function missedSessions() {
+    const prog = getProgress();
+    return user().sessions
+      .filter(s => s.date < TODAY && !isComplete(s, prog) && daysBetween(s.date, TODAY) <= 14)
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+  }
+
+  function catchUpRow(session) {
+    const row = el('div', 'sched-row catchup');
+    row.innerHTML = `
+      <div class="day-dot">${session.day}<br>${session.date.slice(8)}</div>
+      <div class="sched-body">
+        <div class="t">${session.focus}</div>
+        <div class="s">Missed ${shortDate(session.date)}. Tap to do it now.</div>
+      </div>
+      <div class="sched-status makeup">Make up</div>`;
+    row.addEventListener('click', () => openSessionSheet(session));
+    return row;
   }
 
   function blockRow(session, b, doneNow) {
