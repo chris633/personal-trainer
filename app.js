@@ -11,8 +11,8 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 
-  // Calm seated-figure brand mark, reused wherever we'd otherwise show an emoji.
-  const MARK = '<svg class="mark" viewBox="0 0 512 512" fill="#869a76" xmlns="http://www.w3.org/2000/svg"><circle cx="256" cy="168" r="40"/><path d="M256 214 C212 214 184 244 172 306 C150 314 150 350 176 360 C152 368 156 396 192 396 L320 396 C356 396 360 368 336 360 C362 350 362 314 340 306 C328 244 300 214 256 214 Z"/><circle cx="176" cy="352" r="20"/><circle cx="336" cy="352" r="20"/></svg>';
+  // Folded-ribbon check brand mark (matches the app icon), reused in place of emoji.
+  const MARK = '<svg class="mark" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M236 344 L150 250" stroke="#a7b899" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/><path d="M236 344 L378 166" stroke="#869a76" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/><circle cx="236" cy="344" r="27" fill="#869a76"/></svg>';
   const initialOf = (u) => (u && u.name ? u.name.trim().charAt(0).toUpperCase() : '?');
 
   /* ---------------- State ---------------- */
