@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Auto-start the coach bridge on login and restart it if it crashes.
+     Copy to ~/Library/LaunchAgents/ then: launchctl load ~/Library/LaunchAgents/com.trainer.coach.plist
+     Adjust paths if the repo is not at /Users/max/Desktop/Personal Trainer. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.trainer.coach</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/max/Desktop/Personal Trainer/bridge/run.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/max/Desktop/Personal Trainer/bridge</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/max/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/coach-bridge.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/coach-bridge.log</string>
+</dict>
+</plist>

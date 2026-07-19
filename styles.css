@@ -306,6 +306,11 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .msg { max-width: 82%; padding: 12px 15px; border-radius: 18px; font-size: 15px; line-height: 1.5; }
 .msg.ai { background: var(--surface); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 6px; color: var(--text); box-shadow: var(--shadow-soft); }
 .msg.me { background: var(--brand-solid); color: #fff; align-self: flex-end; border-bottom-right-radius: 6px; font-weight: 500; }
+.msg.ai.streaming::after {
+  content: ''; display: inline-block; width: 7px; height: 1.05em; margin-left: 2px; vertical-align: -2px;
+  background: var(--sage); border-radius: 2px; animation: caret 1s steps(2) infinite;
+}
+@keyframes caret { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
 .chat-input-bar {
   position: fixed; left: 0; right: 0;
   bottom: calc(var(--nav-h) + var(--safe-bottom));

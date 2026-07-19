@@ -10,6 +10,7 @@ window.APP_CONFIG = {
 
   // Local Claude bridge (via cloudflared tunnel). Empty = AI features show as "offline".
   BRIDGE_URL: '',
+  BRIDGE_TOKEN: '', // optional shared token sent as x-bridge-token (defense in depth behind Access)
 
   // Default profile when the app first opens.
   DEFAULT_USER: 'caryn',

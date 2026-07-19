@@ -468,33 +468,62 @@
     log.scrollTop = log.scrollHeight;
     if (store) { const m = LS.get(chatKey(), []); m.push({ role, text, at: Date.now() }); LS.set(chatKey(), m); }
   }
+  const OFFLINE_REPLY = "Saved. The coach isn't online right now, so I can't reply live, but your note is kept. Once the coach bridge is running, I'll answer here instantly.";
+
   async function sendChat() {
     const input = $('#chat-input');
     const text = input.value.trim();
     if (!text) return;
     input.value = '';
     appendMsg('me', text);
-    const reply = await askCoach(text);
-    appendMsg('ai', reply);
+
+    const log = $('#chat-log');
+    const bubble = el('div', 'msg ai streaming', '');
+    log.appendChild(bubble);
+    log.scrollTop = log.scrollHeight;
+
+    let full = '';
+    await streamCoach(text, (chunk) => {
+      full += chunk;
+      bubble.textContent = full;
+      log.scrollTop = log.scrollHeight;
+    });
+    if (!full) { full = OFFLINE_REPLY; bubble.textContent = full; }
+    bubble.classList.remove('streaming');
+
+    const msgs = LS.get(chatKey(), []);
+    msgs.push({ role: 'ai', text: full, at: Date.now() });
+    LS.set(chatKey(), msgs);
   }
   $('#chat-send').addEventListener('click', sendChat);
   $('#chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
-  /* ---------------- AI bridge (best-effort) ---------------- */
-  async function askCoach(text) {
-    if (!CFG.BRIDGE_URL) {
-      return "Saved. The coach isn't online right now, so I can't reply live, but your note is kept and will be picked up. Once the coach bridge is running, I'll answer here instantly.";
-    }
+  /* ---------------- AI bridge (streaming, best-effort) ---------------- */
+  function bridgeHeaders() {
+    const h = { 'Content-Type': 'application/json' };
+    if (CFG.BRIDGE_TOKEN) h['x-bridge-token'] = CFG.BRIDGE_TOKEN;
+    return h;
+  }
+  // Streams the coach reply, calling onChunk(text) as tokens arrive. Returns true if it got anything.
+  async function streamCoach(text, onChunk) {
+    if (!CFG.BRIDGE_URL) return false;
     try {
       const res = await fetch(CFG.BRIDGE_URL.replace(/\/$/, '') + '/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: bridgeHeaders(), credentials: 'include',
         body: JSON.stringify({ user: currentUserId, message: text, context: coachContext() }),
       });
-      const data = await res.json();
-      return data.reply || "Hmm, I didn't catch that. Try again?";
-    } catch {
-      return "I couldn't reach the coach right now. Your message is saved and I'll pick it up when I'm back online.";
-    }
+      if (!res.ok || !res.body) return false;
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let got = false;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = dec.decode(value, { stream: true });
+        if (chunk) { got = true; onChunk(chunk); }
+      }
+      return got;
+    } catch { return false; }
   }
   function coachContext() {
     const s = sessionFor(TODAY);
@@ -504,7 +533,7 @@
     if (!CFG.BRIDGE_URL) return;
     try {
       const res = await fetch(CFG.BRIDGE_URL.replace(/\/$/, '') + '/feedback', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: bridgeHeaders(), credentials: 'include',
         body: JSON.stringify({ user: currentUserId, session: { focus: session.focus, day: session.day }, streak: computeStreak(), context: coachContext() }),
       });
       const data = await res.json();
