@@ -460,7 +460,6 @@
       msgs.forEach(m => appendMsg(m.role, m.text, false));
     }
     $('#coach-status').textContent = CFG.BRIDGE_URL ? 'Online' : 'Offline. Messages are saved for your coach';
-    if (CFG.BRIDGE_URL) ensureCoachSeeded();
     log.scrollTop = log.scrollHeight;
   }
   function appendMsg(role, text, store = true) {
@@ -489,10 +488,7 @@
       bubble.textContent = full;
       log.scrollTop = log.scrollHeight;
     });
-    if (!full) {
-      full = OFFLINE_REPLY + (CFG.BRIDGE_URL && lastCoachError ? `\n\n[diag: ${lastCoachError}]` : '');
-      bubble.textContent = full;
-    }
+    if (!full) { full = OFFLINE_REPLY; bubble.textContent = full; }
     bubble.classList.remove('streaming');
 
     const msgs = LS.get(chatKey(), []);
@@ -503,48 +499,20 @@
   $('#chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
   /* ---------------- AI bridge (streaming, best-effort) ---------------- */
-  // Cloudflare Access cookies are per-host, so coach.azurecarson.com needs its own cookie
-  // before the app can call it in the background. coach and trainer are the same site, so a
-  // hidden iframe silently completes Access (the user is already signed in) and sets it;
-  // after that, same-site credentialed fetches carry the cookie.
-  let coachSeed = null;
-  function ensureCoachSeeded() {
-    if (!CFG.BRIDGE_URL) return Promise.resolve(false);
-    if (coachSeed) return coachSeed;
-    coachSeed = new Promise((resolve) => {
-      try {
-        const iframe = document.createElement('iframe');
-        iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-        iframe.src = CFG.BRIDGE_URL.replace(/\/$/, '') + '/health';
-        let done = false;
-        const finish = (v) => { if (!done) { done = true; resolve(v); } };
-        iframe.onload = () => finish(true);
-        iframe.onerror = () => finish(false);
-        document.body.appendChild(iframe);
-        setTimeout(() => finish(true), 5000);
-      } catch { resolve(false); }
-    });
-    return coachSeed;
-  }
-
   function bridgeHeaders() {
     const h = { 'Content-Type': 'application/json' };
     if (CFG.BRIDGE_TOKEN) h['x-bridge-token'] = CFG.BRIDGE_TOKEN;
     return h;
   }
   // Streams the coach reply, calling onChunk(text) as tokens arrive. Returns true if it got anything.
-  let lastCoachError = '';
   async function streamCoach(text, onChunk) {
     if (!CFG.BRIDGE_URL) return false;
-    lastCoachError = '';
-    const seeded = await ensureCoachSeeded();
     try {
       const res = await fetch(CFG.BRIDGE_URL.replace(/\/$/, '') + '/chat', {
         method: 'POST', headers: bridgeHeaders(), credentials: 'include',
         body: JSON.stringify({ user: currentUserId, message: text, context: coachContext() }),
       });
-      if (!res.ok) { lastCoachError = `HTTP ${res.status} (seed:${seeded})`; return false; }
-      if (!res.body) { lastCoachError = 'no response body'; return false; }
+      if (!res.ok || !res.body) return false;
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let got = false;
@@ -555,7 +523,7 @@
         if (chunk) { got = true; onChunk(chunk); }
       }
       return got;
-    } catch (e) { lastCoachError = `${e && e.name}: ${e && e.message} (seed:${seeded})`; return false; }
+    } catch { return false; }
   }
   function coachContext() {
     const s = sessionFor(TODAY);
@@ -563,7 +531,6 @@
   }
   async function maybeAiFeedback(session, banner) {
     if (!CFG.BRIDGE_URL) return;
-    await ensureCoachSeeded();
     try {
       const res = await fetch(CFG.BRIDGE_URL.replace(/\/$/, '') + '/feedback', {
         method: 'POST', headers: bridgeHeaders(), credentials: 'include',
@@ -749,7 +716,6 @@
     }
     // Re-subscribe silently if already granted (keeps endpoint fresh).
     if ('Notification' in window && Notification.permission === 'granted') subscribePush();
-    if (CFG.BRIDGE_URL) setTimeout(ensureCoachSeeded, 1500); // warm the coach's Access cookie
     setTimeout(maybeOnboard, 600);
   }
   boot();

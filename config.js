@@ -8,10 +8,10 @@ window.APP_CONFIG = {
   // Web Push: public VAPID key (base64url). Private key lives only on the server.
   VAPID_PUBLIC_KEY: 'BDunA2A2VKDfk16BdEbxk2rECLnnXe7jCbZGz1RYixUVch0KJcqN-_sbHILTPtyx3D52hQeTcejL6lpcPhhYURY',
 
-  // Coach bridge. Temporarily disabled: cross-subdomain login doesn't work in the iOS PWA.
-  // Re-enable with the same-origin path 'https://trainer.azurecarson.com/coach' once the
-  // Cloudflare Worker route is in place. Empty = coach shows a clean "offline" state.
-  BRIDGE_URL: '',
+  // Coach bridge, served SAME-ORIGIN via a Cloudflare Worker (trainer.azurecarson.com/coach/*
+  // -> service token -> coach.azurecarson.com -> tunnel -> local bridge). Same-origin means the
+  // app's existing login covers it: no cookie seeding, no CORS. Works on desktop and iOS PWA.
+  BRIDGE_URL: 'https://trainer.azurecarson.com/coach',
   BRIDGE_TOKEN: '',
 
   // Default profile when the app first opens.

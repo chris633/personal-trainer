@@ -1,5 +1,5 @@
 /* Service worker: offline precache + web push handling. */
-const CACHE = 'trainer-v11';
+const CACHE = 'trainer-v12';
 const ASSETS = [
   './',
   'index.html',
