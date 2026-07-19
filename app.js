@@ -425,7 +425,7 @@
   function syncCompletion(session) {
     // Best-effort: tell backend a session was completed (for cross-device + coach memory).
     if (!CFG.SUPABASE_URL) return;
-    fetch(`${CFG.SUPABASE_URL}/rest/v1/completions`, {
+    fetch(`${CFG.SUPABASE_URL}/rest/v1/completions?on_conflict=user_id,date`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + CFG.SUPABASE_ANON_KEY, 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify({ user_id: currentUserId, date: session.date, focus: session.focus }),
@@ -457,10 +457,10 @@
         sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(CFG.VAPID_PUBLIC_KEY) });
       }
       if (CFG.SUPABASE_URL) {
-        await fetch(`${CFG.SUPABASE_URL}/rest/v1/push_subscriptions`, {
+        await fetch(`${CFG.SUPABASE_URL}/rest/v1/push_subscriptions?on_conflict=endpoint`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + CFG.SUPABASE_ANON_KEY, 'Prefer': 'resolution=merge-duplicates' },
-          body: JSON.stringify({ user_id: currentUserId, endpoint: sub.endpoint, subscription: sub.toJSON() }),
+          body: JSON.stringify({ user_id: currentUserId, endpoint: sub.endpoint, subscription: sub.toJSON(), updated_at: new Date().toISOString() }),
         });
       }
       return sub;
