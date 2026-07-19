@@ -450,12 +450,12 @@
     if (!('Notification' in window)) { toast('Notifications not supported on this browser'); return; }
     const perm = await Notification.requestPermission();
     if (perm !== 'granted') { toast(perm === 'denied' ? 'Notifications are blocked. Enable them in Settings.' : 'Maybe later'); renderProfile?.(); return; }
-    await subscribePush();
-    toast('Reminders on 🔔');
+    const ok = await subscribePush();
+    toast(ok ? 'Reminders on 🔔' : 'Could not finish setup. Please try again.');
     renderProfile();
   }
   async function subscribePush() {
-    if (!('serviceWorker' in navigator) || !CFG.VAPID_PUBLIC_KEY) return null;
+    if (!('serviceWorker' in navigator) || !CFG.VAPID_PUBLIC_KEY) return false;
     try {
       const reg = await navigator.serviceWorker.ready;
       let sub = await reg.pushManager.getSubscription();
@@ -463,14 +463,15 @@
         sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(CFG.VAPID_PUBLIC_KEY) });
       }
       if (CFG.SUPABASE_URL) {
-        await fetch(`${CFG.SUPABASE_URL}/rest/v1/push_subscriptions?on_conflict=endpoint`, {
+        const res = await fetch(`${CFG.SUPABASE_URL}/rest/v1/rpc/save_push_subscription`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + CFG.SUPABASE_ANON_KEY, 'Prefer': 'resolution=merge-duplicates' },
-          body: JSON.stringify({ user_id: currentUserId, endpoint: sub.endpoint, subscription: sub.toJSON(), updated_at: new Date().toISOString() }),
+          headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + CFG.SUPABASE_ANON_KEY },
+          body: JSON.stringify({ p_user_id: currentUserId, p_endpoint: sub.endpoint, p_subscription: sub.toJSON() }),
         });
+        if (!res.ok) { console.warn('save subscription failed', res.status, await res.text().catch(() => '')); return false; }
       }
-      return sub;
-    } catch (e) { console.warn('push subscribe failed', e); return null; }
+      return true;
+    } catch (e) { console.warn('push subscribe failed', e); return false; }
   }
   async function sendTestPush() {
     if (CFG.SUPABASE_URL) {
