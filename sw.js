@@ -1,5 +1,5 @@
 /* Service worker: offline precache + web push handling. */
-const CACHE = 'trainer-v3';
+const CACHE = 'trainer-v4';
 const ASSETS = [
   './',
   'index.html',
@@ -48,7 +48,7 @@ self.addEventListener('push', (e) => {
   try { data = e.data ? e.data.json() : {}; } catch { data = { body: e.data && e.data.text() }; }
   const title = data.title || 'Time to train 💪';
   const options = {
-    body: data.body || "Your workout is ready — let's go.",
+    body: data.body || "Your workout is ready. Let's go.",
     icon: 'icons/icon-192.png',
     badge: 'icons/badge-72.png',
     tag: data.tag || 'workout-reminder',

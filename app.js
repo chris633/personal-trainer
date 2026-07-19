@@ -1,5 +1,5 @@
 /* =========================================================================
-   Personal Trainer PWA — app logic
+   Personal Trainer PWA - app logic
    Standalone-capable: works entirely on localStorage + seeded data.
    Enhances progressively when Supabase (push) and the Claude bridge are set.
    ========================================================================= */
@@ -11,13 +11,19 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 
+  // Calm seated-figure brand mark, reused wherever we'd otherwise show an emoji.
+  const MARK = '<svg class="mark" viewBox="0 0 512 512" fill="#869a76" xmlns="http://www.w3.org/2000/svg"><circle cx="256" cy="168" r="40"/><path d="M256 214 C212 214 184 244 172 306 C150 314 150 350 176 360 C152 368 156 396 192 396 L320 396 C356 396 360 368 336 360 C362 350 362 314 340 306 C328 244 300 214 256 214 Z"/><circle cx="176" cy="352" r="20"/><circle cx="336" cy="352" r="20"/></svg>';
+  const initialOf = (u) => (u && u.name ? u.name.trim().charAt(0).toUpperCase() : '?');
+
   /* ---------------- State ---------------- */
   const LS = {
     get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   };
 
-  let currentUserId = LS.get('pt.currentUser', CFG.DEFAULT_USER || 'caryn');
+  // ?user=<id> lets Chris test as the isolated "demo" profile; it sticks after install.
+  const _qUser = new URLSearchParams(location.search).get('user');
+  let currentUserId = (_qUser && USERS[_qUser]) ? _qUser : LS.get('pt.currentUser', CFG.DEFAULT_USER || 'caryn');
   if (!USERS[currentUserId]) currentUserId = Object.keys(USERS)[0];
 
   const user = () => USERS[currentUserId];
@@ -63,7 +69,7 @@
     let streak = 0;
     for (const s of past) {
       const done = isComplete(s, prog);
-      if (s.date === TODAY && !done) continue; // today still open — don't break
+      if (s.date === TODAY && !done) continue; // today still open, don't break
       if (done) streak++; else break;
     }
     return streak;
@@ -125,12 +131,12 @@
     const session = sessionFor(TODAY);
 
     if (!session) {
-      // Rest day — show the next scheduled session too.
+      // Rest day. Show the next scheduled session too.
       const next = user().sessions.find(s => s.date > TODAY);
       const card = el('div', 'card rest');
-      card.innerHTML = `<div class="emoji">🧘‍♀️</div>
+      card.innerHTML = `${MARK}
         <h1>Rest &amp; recover</h1>
-        <p>No session scheduled today. Great training comes from good recovery — hydrate, stretch, and rest up.</p>`;
+        <p>Rest is where the work settles in. Hydrate, stretch, and take it easy today.</p>`;
       root.appendChild(card);
       if (next) {
         const t = el('div', 'section-title', 'Up next');
@@ -220,11 +226,11 @@
 
   /* ---------------- Completion celebration ---------------- */
   const CHEERS = [
-    "Crushed it. That's how the week gets built. 💪",
-    "Done and done. Future you says thanks.",
-    "Another one in the bank. You showed up — that's the whole game.",
-    "Strong work today. Rest, refuel, repeat.",
-    "That's a wrap. Consistency is quietly stacking up.",
+    "Beautifully done. That is how the week gets built.",
+    "Complete. Future you is grateful.",
+    "You showed up, and that is the whole game.",
+    "Strong and steady. Rest, refuel, repeat.",
+    "That is a wrap. Your consistency is quietly compounding.",
   ];
   function onSessionComplete(session) {
     buzz([16, 40, 16]);
@@ -238,8 +244,8 @@
     const banner = $('#done-banner');
     if (!banner) return;
     const streak = computeStreak();
-    const msg = fresh ? CHEERS[Math.floor(Date.now() / 8.64e7) % CHEERS.length] : "You completed this session. Nice.";
-    banner.innerHTML = `<h3>Workout complete 🎉</h3>
+    const msg = fresh ? CHEERS[Math.floor(Date.now() / 8.64e7) % CHEERS.length] : "You completed this session. Lovely.";
+    banner.innerHTML = `<h3>Session complete</h3>
       <p>${msg}${streak > 1 ? ` &nbsp;·&nbsp; <b>${streak}-workout streak</b> 🔥` : ''}</p>
       <div id="ai-feedback"></div>`;
     banner.classList.add('show');
@@ -274,7 +280,7 @@
     user().sessions.forEach(s => { (weeks[s.week] = weeks[s.week] || []).push(s); });
     Object.keys(weeks).forEach(w => {
       const days = weeks[w];
-      const range = `${shortDate(days[0].date)} – ${shortDate(days[days.length - 1].date)}`;
+      const range = `${shortDate(days[0].date)} to ${shortDate(days[days.length - 1].date)}`;
       const doneN = days.filter(s => isComplete(s)).length;
       const head = el('div', 'week-head', `<b>Week ${w}</b><span>${range}${doneN ? ` · ${doneN}/${days.length} done` : ''}</span>`);
       root.appendChild(head);
@@ -292,7 +298,7 @@
         <div class="b-body"><div class="b-title">${b.title}</div><div class="b-detail">${b.detail}</div>
         <div class="b-meta"><span class="chip">${b.time}${b.minutes ? ' · ' + b.minutes + ' min' : ''}</span></div></div></div>`;
     }).join('');
-    const html = `<div class="big-emoji">🏋️‍♀️</div>
+    const html = `${MARK}
       <h2>${session.focus}</h2>
       <p>${session.day} · Week ${session.week} · ${session.window}</p>
       <div class="blocks" style="margin-top:14px">${rows}</div>
@@ -329,7 +335,7 @@
     const notifLabel = notifState === 'granted' ? 'On' : (notifState === 'denied' ? 'Blocked' : 'Off');
     root.innerHTML = `
       <div class="profile-hero">
-        <div class="avatar">${u.emoji}</div>
+        <div class="avatar">${initialOf(u)}</div>
         <h2>${u.name}</h2>
         <div class="goal">${u.goals}</div>
       </div>
@@ -350,7 +356,7 @@
       </div>`;
     $('#notif-btn').addEventListener('click', () => notifState === 'granted' ? sendTestPush() : enableNotifications());
     $('#reset-btn').addEventListener('click', () => {
-      openSheet(`<div class="big-emoji">⚠️</div><h2>Reset progress?</h2>
+      openSheet(`<h2>Reset progress?</h2>
         <p>This clears all checked workouts and the streak for ${u.name}. This can't be undone.</p>
         <div class="actions"><button class="btn primary full" id="do-reset">Yes, reset</button><button class="btn ghost full" id="cancel-reset">Cancel</button></div>`);
       $('#do-reset').addEventListener('click', () => { setProgress({}); closeSheet(); renderAll(); toast('Progress reset'); });
@@ -365,12 +371,12 @@
     const msgs = LS.get(chatKey(), []);
     if (!msgs.length) {
       log.innerHTML = `<div class="chat-note">Your coach can adjust the plan, swap a class, or talk through how a session felt. ${CFG.BRIDGE_URL ? '' : 'AI replies come online once the coach bridge is running.'}</div>`;
-      appendMsg('ai', `Hey ${user().name}! I'm your coach. Tell me how a workout felt, ask me to tweak anything, or just check in. 💬`, false);
+      appendMsg('ai', `Hi ${user().name}. I'm your coach. Tell me how a workout felt, ask me to adjust anything, or just check in.`, false);
     } else {
       log.innerHTML = '';
       msgs.forEach(m => appendMsg(m.role, m.text, false));
     }
-    $('#coach-status').textContent = CFG.BRIDGE_URL ? 'Online' : 'Offline — messages saved for your coach';
+    $('#coach-status').textContent = CFG.BRIDGE_URL ? 'Online' : 'Offline. Messages are saved for your coach';
     log.scrollTop = log.scrollHeight;
   }
   function appendMsg(role, text, store = true) {
@@ -394,7 +400,7 @@
   /* ---------------- AI bridge (best-effort) ---------------- */
   async function askCoach(text) {
     if (!CFG.BRIDGE_URL) {
-      return "Saved! Your coach bridge isn't running yet, so I can't reply live — but I've noted this and Chris will see it. (Once the bridge is on, I'll answer here instantly.)";
+      return "Saved. The coach isn't online right now, so I can't reply live, but your note is kept and will be picked up. Once the coach bridge is running, I'll answer here instantly.";
     }
     try {
       const res = await fetch(CFG.BRIDGE_URL.replace(/\/$/, '') + '/chat', {
@@ -402,7 +408,7 @@
         body: JSON.stringify({ user: currentUserId, message: text, context: coachContext() }),
       });
       const data = await res.json();
-      return data.reply || "Hmm, I didn't catch that — try again?";
+      return data.reply || "Hmm, I didn't catch that. Try again?";
     } catch {
       return "I couldn't reach the coach right now. Your message is saved and I'll pick it up when I'm back online.";
     }
@@ -443,7 +449,7 @@
   async function enableNotifications() {
     if (!('Notification' in window)) { toast('Notifications not supported on this browser'); return; }
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted') { toast(perm === 'denied' ? 'Notifications blocked — enable in settings' : 'Maybe later'); renderProfile?.(); return; }
+    if (perm !== 'granted') { toast(perm === 'denied' ? 'Notifications are blocked. Enable them in Settings.' : 'Maybe later'); renderProfile?.(); return; }
     await subscribePush();
     toast('Reminders on 🔔');
     renderProfile();
@@ -473,13 +479,13 @@
           method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': CFG.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + CFG.SUPABASE_ANON_KEY },
           body: JSON.stringify({ user_id: currentUserId, test: true }),
         });
-        toast('Test push sent — check your lock screen');
+        toast('Test push sent. Check your lock screen.');
         return;
       } catch {}
     }
     // Local fallback so the button always does something visible.
     const reg = await navigator.serviceWorker?.ready;
-    reg?.showNotification('Trainer', { body: "Test reminder — you're all set for 6:15am 🔔", icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' });
+    reg?.showNotification('Trainer', { body: "Test reminder. You're all set for 6:15am.", icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' });
     toast('Local test shown');
   }
 
@@ -497,9 +503,9 @@
     showWelcomeSheet();
   }
   function showInstallSheet() {
-    openSheet(`<div class="big-emoji">📲</div>
+    openSheet(`${MARK}
       <h2>Add to Home Screen</h2>
-      <p>To get your 6:15am reminders, add ${document.title} to your Home Screen first — Apple only allows notifications from installed apps.</p>
+      <p>To get your 6:15am reminders, add Trainer to your Home Screen first. Apple only allows notifications from installed apps.</p>
       <ol>
         <li>Tap the <b>Share</b> button <span aria-hidden="true">􀈂</span> at the bottom of Safari</li>
         <li>Scroll and tap <b>Add to Home Screen</b></li>
@@ -510,9 +516,9 @@
   }
   function showWelcomeSheet() {
     const u = user();
-    openSheet(`<div class="big-emoji">${u.emoji}</div>
+    openSheet(`${MARK}
       <h2>Welcome, ${u.name}!</h2>
-      <p>Your 4-week program starts Monday. Each morning your workout is right here — tap each block as you finish it and watch your streak grow.</p>
+      <p>Your 4-week program starts Monday. Each morning your workout is right here. Tap each block as you finish it and watch your streak grow.</p>
       <p style="margin-top:10px">Turn on reminders and I'll nudge you at <b>6:15am</b> on workout days with the day's plan.</p>
       <div class="actions">
         <button class="btn primary full" id="ob-notif">Turn on 6:15am reminders 🔔</button>
@@ -546,7 +552,7 @@
   sizeCanvas(); addEventListener('resize', sizeCanvas);
 
   function tagColor(tag) { return (TAGS[tag] || {}).accent || '#ffc86b'; }
-  const CONFETTI_COLORS = ['#ff7a59', '#ffc46b', '#64e0b8', '#7aa2ff', '#ff7ea8'];
+  const CONFETTI_COLORS = ['#9db089', '#c9b18f', '#c19684', '#94b1b4', '#c396a1', '#a89fb4'];
 
   function confettiBurst(x, y, count, color) {
     for (let i = 0; i < count; i++) {
