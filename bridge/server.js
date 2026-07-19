@@ -37,6 +37,10 @@ function send(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 function setCors(req, res) {
+  // Behind Cloudflare Access, Access injects the CORS headers itself. Emitting our own
+  // would duplicate Access-Control-Allow-Origin and the browser would reject the response.
+  // So only set CORS for direct (local) calls that did NOT come through Access.
+  if (req.headers['cf-access-jwt-assertion']) return;
   const origin = req.headers.origin;
   if (origin && ALLOWED.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);

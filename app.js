@@ -460,6 +460,7 @@
       msgs.forEach(m => appendMsg(m.role, m.text, false));
     }
     $('#coach-status').textContent = CFG.BRIDGE_URL ? 'Online' : 'Offline. Messages are saved for your coach';
+    if (CFG.BRIDGE_URL) ensureCoachSeeded();
     log.scrollTop = log.scrollHeight;
   }
   function appendMsg(role, text, store = true) {
@@ -499,6 +500,30 @@
   $('#chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
   /* ---------------- AI bridge (streaming, best-effort) ---------------- */
+  // Cloudflare Access cookies are per-host, so coach.azurecarson.com needs its own cookie
+  // before the app can call it in the background. coach and trainer are the same site, so a
+  // hidden iframe silently completes Access (the user is already signed in) and sets it;
+  // after that, same-site credentialed fetches carry the cookie.
+  let coachSeed = null;
+  function ensureCoachSeeded() {
+    if (!CFG.BRIDGE_URL) return Promise.resolve(false);
+    if (coachSeed) return coachSeed;
+    coachSeed = new Promise((resolve) => {
+      try {
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
+        iframe.src = CFG.BRIDGE_URL.replace(/\/$/, '') + '/health';
+        let done = false;
+        const finish = (v) => { if (!done) { done = true; resolve(v); } };
+        iframe.onload = () => finish(true);
+        iframe.onerror = () => finish(false);
+        document.body.appendChild(iframe);
+        setTimeout(() => finish(true), 5000);
+      } catch { resolve(false); }
+    });
+    return coachSeed;
+  }
+
   function bridgeHeaders() {
     const h = { 'Content-Type': 'application/json' };
     if (CFG.BRIDGE_TOKEN) h['x-bridge-token'] = CFG.BRIDGE_TOKEN;
@@ -507,6 +532,7 @@
   // Streams the coach reply, calling onChunk(text) as tokens arrive. Returns true if it got anything.
   async function streamCoach(text, onChunk) {
     if (!CFG.BRIDGE_URL) return false;
+    await ensureCoachSeeded();
     try {
       const res = await fetch(CFG.BRIDGE_URL.replace(/\/$/, '') + '/chat', {
         method: 'POST', headers: bridgeHeaders(), credentials: 'include',
@@ -531,6 +557,7 @@
   }
   async function maybeAiFeedback(session, banner) {
     if (!CFG.BRIDGE_URL) return;
+    await ensureCoachSeeded();
     try {
       const res = await fetch(CFG.BRIDGE_URL.replace(/\/$/, '') + '/feedback', {
         method: 'POST', headers: bridgeHeaders(), credentials: 'include',
@@ -716,6 +743,7 @@
     }
     // Re-subscribe silently if already granted (keeps endpoint fresh).
     if ('Notification' in window && Notification.permission === 'granted') subscribePush();
+    if (CFG.BRIDGE_URL) setTimeout(ensureCoachSeeded, 1500); // warm the coach's Access cookie
     setTimeout(maybeOnboard, 600);
   }
   boot();

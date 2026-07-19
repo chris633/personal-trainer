@@ -8,9 +8,9 @@ window.APP_CONFIG = {
   // Web Push: public VAPID key (base64url). Private key lives only on the server.
   VAPID_PUBLIC_KEY: 'BDunA2A2VKDfk16BdEbxk2rECLnnXe7jCbZGz1RYixUVch0KJcqN-_sbHILTPtyx3D52hQeTcejL6lpcPhhYURY',
 
-  // Local Claude bridge (via cloudflared tunnel). Empty = AI features show as "offline".
-  BRIDGE_URL: '',
-  BRIDGE_TOKEN: '', // optional shared token sent as x-bridge-token (defense in depth behind Access)
+  // Local Claude bridge, exposed at coach.azurecarson.com (same-site, behind the same login).
+  BRIDGE_URL: 'https://coach.azurecarson.com',
+  BRIDGE_TOKEN: '', // not used; Cloudflare Access is the auth boundary
 
   // Default profile when the app first opens.
   DEFAULT_USER: 'caryn',
