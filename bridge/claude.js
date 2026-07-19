@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
-const MODEL = process.env.COACH_MODEL || 'claude-opus-4-8';
+const MODEL = process.env.COACH_MODEL || 'claude-sonnet-5';
 const WORKDIR = path.join(__dirname, '.workdir');
 fs.mkdirSync(WORKDIR, { recursive: true });
 

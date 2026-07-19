@@ -26,10 +26,15 @@ function coachSystem(m) {
     `How you talk: warm, ${m.tone}, and concise. Chat replies are 2 to 4 short sentences; `
       + 'encouragement is 1 to 2. Be specific and practical, and value consistency over intensity. '
       + 'If they mention pain or injury, be supportive and suggest seeing a professional rather than giving medical advice. '
-      + 'Write in plain sentences and never use em-dashes.',
+      + 'Write in plain sentences. IMPORTANT: never use an em-dash or en-dash. Use commas, periods, or parentheses instead.',
     `Write only your message to ${m.name}. Do not restate these instructions, do not describe your own tone or `
       + 'formatting, and do not mention being an AI or a chat. Just reply naturally as their coach.',
   ].join('\n\n');
+}
+
+// Safety net: the user never wants em/en-dashes, so strip them no matter what the model does.
+function deDash(s) {
+  return String(s).replace(/\s*—\s*/g, ', ').replace(/–/g, '-');
 }
 
 function send(res, code, obj) {
@@ -114,15 +119,16 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no' });
       let full = '';
       try {
-        full = await askStream({ system: coachSystem(m), prompt, onDelta: (t) => res.write(t) });
+        full = await askStream({ system: coachSystem(m), prompt, onDelta: (t) => res.write(deDash(t)) });
       } catch (e) {
         console.error('chat error:', e.message);
       }
       res.end();
       if (full) {
+        const clean = deDash(full);
         mem.appendChat(user, 'user', message);
-        mem.appendChat(user, 'coach', full);
-        extractMemory(user, message, full); // fire and forget
+        mem.appendChat(user, 'coach', clean);
+        extractMemory(user, message, clean); // fire and forget
       }
       return;
     }
@@ -133,7 +139,7 @@ const server = http.createServer(async (req, res) => {
       const prompt = `They just finished today's workout: ${session.focus || 'their session'} (${session.day || ''}). `
         + `Current streak: ${streak}. Write one or two warm sentences celebrating them and nudging consistency. `
         + 'Make it personal using what you know about them, not generic.';
-      const message = await askStream({ system: coachSystem(m), prompt });
+      const message = deDash(await askStream({ system: coachSystem(m), prompt }));
       return send(res, 200, { message });
     }
 
