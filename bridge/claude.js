@@ -32,7 +32,9 @@ function _askStream({ system, prompt, model = MODEL, onDelta }) {
       // Run lean: ignore the user's MCP servers so startup is fast and the coach stays text-only.
       '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
     ];
-    if (system) args.push('--append-system-prompt', system);
+    // Replace (not append) the base prompt, so Claude Code's coding-agent framing never leaks
+    // into the coach's replies (e.g. "this isn't a coding task").
+    if (system) args.push('--system-prompt', system);
 
     const env = { ...process.env, PATH: `${process.env.HOME}/.local/bin:${process.env.PATH || ''}` };
     const child = spawn(CLAUDE_BIN, args, { cwd: WORKDIR, env });
