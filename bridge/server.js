@@ -92,14 +92,16 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
   const url = new URL(req.url, 'http://x');
+  // Works whether mounted at the root or behind a /coach path prefix.
+  const pathname = url.pathname.replace(/^\/coach(?=\/|$)/, '') || '/';
 
-  if (req.method === 'GET' && url.pathname === '/health') {
+  if (req.method === 'GET' && pathname === '/health') {
     return send(res, 200, { ok: true, model: MODEL });
   }
   if (!authed(req)) return send(res, 401, { error: 'unauthorized' });
 
   try {
-    if (req.method === 'POST' && url.pathname === '/chat') {
+    if (req.method === 'POST' && pathname === '/chat') {
       const { user = 'caryn', message = '' } = await readBody(req);
       if (!String(message).trim()) return send(res, 400, { error: 'empty message' });
       const m = mem.getMemory(user);
@@ -121,7 +123,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === 'POST' && url.pathname === '/feedback') {
+    if (req.method === 'POST' && pathname === '/feedback') {
       const { user = 'caryn', session = {}, streak = 0 } = await readBody(req);
       const m = mem.getMemory(user);
       const prompt = `They just finished today's workout: ${session.focus || 'their session'} (${session.day || ''}). `
