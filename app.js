@@ -489,7 +489,10 @@
       bubble.textContent = full;
       log.scrollTop = log.scrollHeight;
     });
-    if (!full) { full = OFFLINE_REPLY; bubble.textContent = full; }
+    if (!full) {
+      full = OFFLINE_REPLY + (CFG.BRIDGE_URL && lastCoachError ? `\n\n[diag: ${lastCoachError}]` : '');
+      bubble.textContent = full;
+    }
     bubble.classList.remove('streaming');
 
     const msgs = LS.get(chatKey(), []);
@@ -530,15 +533,18 @@
     return h;
   }
   // Streams the coach reply, calling onChunk(text) as tokens arrive. Returns true if it got anything.
+  let lastCoachError = '';
   async function streamCoach(text, onChunk) {
     if (!CFG.BRIDGE_URL) return false;
-    await ensureCoachSeeded();
+    lastCoachError = '';
+    const seeded = await ensureCoachSeeded();
     try {
       const res = await fetch(CFG.BRIDGE_URL.replace(/\/$/, '') + '/chat', {
         method: 'POST', headers: bridgeHeaders(), credentials: 'include',
         body: JSON.stringify({ user: currentUserId, message: text, context: coachContext() }),
       });
-      if (!res.ok || !res.body) return false;
+      if (!res.ok) { lastCoachError = `HTTP ${res.status} (seed:${seeded})`; return false; }
+      if (!res.body) { lastCoachError = 'no response body'; return false; }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let got = false;
@@ -549,7 +555,7 @@
         if (chunk) { got = true; onChunk(chunk); }
       }
       return got;
-    } catch { return false; }
+    } catch (e) { lastCoachError = `${e && e.name}: ${e && e.message} (seed:${seeded})`; return false; }
   }
   function coachContext() {
     const s = sessionFor(TODAY);
