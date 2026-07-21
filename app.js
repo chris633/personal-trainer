@@ -87,7 +87,70 @@
     const [by, bm, bd] = b.split('-').map(Number);
     return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
   }
-  function sessionFor(dateStr) { return user().sessions.find(s => s.date === dateStr) || null; }
+  /* ---------------- Plan overrides (coach-made schedule changes) ---------------- */
+  const ovKey = () => `pt.${currentUserId}.overrides`;
+  let OVERRIDES = LS.get(ovKey(), {}); // { 'YYYY-MM-DD': sessionObj | { rest:true } }
+
+  async function fetchOverrides() {
+    if (!CFG.SUPABASE_URL) return false;
+    try {
+      const res = await fetch(`${CFG.SUPABASE_URL}/rest/v1/plan_overrides?user_id=eq.${encodeURIComponent(currentUserId)}&select=date,session`, {
+        headers: { apikey: CFG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CFG.SUPABASE_ANON_KEY },
+      });
+      if (!res.ok) return false;
+      const rows = await res.json();
+      const map = {};
+      rows.forEach(r => { map[r.date] = r.session; });
+      const changed = JSON.stringify(map) !== JSON.stringify(OVERRIDES);
+      OVERRIDES = map;
+      LS.set(ovKey(), map);
+      return changed;
+    } catch { return false; }
+  }
+  async function refreshPlan() {
+    const changed = await fetchOverrides();
+    if (changed) {
+      renderAll();
+      if ($('#screen-schedule').classList.contains('active')) renderSchedule();
+    }
+  }
+
+  const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function dayAbbrev(dateStr) { const [y, m, d] = dateStr.split('-').map(Number); return DAY_ABBR[new Date(y, m - 1, d).getDay()]; }
+  function weekFor(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const diff = Math.floor((Date.UTC(y, m - 1, d) - Date.UTC(2026, 6, 20)) / 86400000); // program starts Mon Jul 20
+    return Math.max(1, Math.floor(diff / 7) + 1);
+  }
+  function buildSession(dateStr, ov) {
+    return {
+      date: dateStr, day: dayAbbrev(dateStr), week: weekFor(dateStr),
+      focus: ov.focus || 'Workout', window: ov.window || '6:30-7:15 AM',
+      blocks: (ov.blocks || []).map((b, i) => ({
+        id: b.id || `${dateStr}-o${i}`, time: b.time || '', title: b.title || 'Workout',
+        detail: b.detail || '', minutes: b.minutes || 0, tag: b.tag || 'fullbody',
+      })),
+      coachEdited: true,
+    };
+  }
+
+  // Base program with coach overrides applied. Used by schedule, streaks, and up-next.
+  function effectiveSessions() {
+    const byDate = {};
+    user().sessions.forEach(s => { byDate[s.date] = s; });
+    Object.keys(OVERRIDES).forEach(date => {
+      const ov = OVERRIDES[date];
+      if (ov && ov.rest) delete byDate[date];
+      else if (ov) byDate[date] = buildSession(date, ov);
+    });
+    return Object.values(byDate).sort((a, b) => (a.date < b.date ? -1 : 1));
+  }
+
+  function sessionFor(dateStr) {
+    const ov = OVERRIDES[dateStr];
+    if (ov) return ov.rest ? null : buildSession(dateStr, ov);
+    return user().sessions.find(s => s.date === dateStr) || null;
+  }
   function isComplete(session, prog = getProgress()) {
     if (!session) return false;
     const done = prog[session.date] || {};
@@ -101,7 +164,7 @@
   /* ---------------- Streaks ---------------- */
   function computeStreak() {
     const prog = getProgress();
-    const past = user().sessions
+    const past = effectiveSessions()
       .filter(s => s.date <= TODAY)
       .sort((a, b) => (a.date < b.date ? 1 : -1)); // descending
     let streak = 0;
@@ -114,14 +177,14 @@
   }
   function bestStreak() {
     const prog = getProgress();
-    const asc = user().sessions.slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    const asc = effectiveSessions();
     let best = 0, run = 0;
     for (const s of asc) { if (isComplete(s, prog)) { run++; best = Math.max(best, run); } else if (s.date < TODAY) { run = 0; } }
     return best;
   }
   function totalWorkoutsDone() {
     const prog = getProgress();
-    return user().sessions.filter(s => isComplete(s, prog)).length;
+    return effectiveSessions().filter(s => isComplete(s, prog)).length;
   }
 
   /* ---------------- Router ---------------- */
@@ -130,7 +193,8 @@
     $(`#screen-${screen}`).classList.add('active');
     document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.screen === screen));
     window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
-    if (screen === 'schedule') renderSchedule();
+    if (screen === 'today') { renderToday(); refreshPlan(); }
+    if (screen === 'schedule') { renderSchedule(); refreshPlan(); }
     if (screen === 'me') renderProfile();
     if (screen === 'chat') renderChat();
   }
@@ -183,7 +247,7 @@
     }
 
     if (!session) {
-      const next = user().sessions.find(s => s.date > TODAY);
+      const next = effectiveSessions().find(s => s.date > TODAY);
       if (next) {
         root.appendChild(el('div', 'section-title', 'Up next'));
         root.appendChild(scheduleRow(next));
@@ -238,7 +302,7 @@
   // Missed sessions from the last two weeks that she can still make up.
   function missedSessions() {
     const prog = getProgress();
-    return user().sessions
+    return effectiveSessions()
       .filter(s => s.date < TODAY && !isComplete(s, prog) && daysBetween(s.date, TODAY) <= 14)
       .sort((a, b) => (a.date < b.date ? -1 : 1));
   }
@@ -360,7 +424,7 @@
     const root = $('#schedule-content');
     root.innerHTML = '';
     const weeks = {};
-    user().sessions.forEach(s => { (weeks[s.week] = weeks[s.week] || []).push(s); });
+    effectiveSessions().forEach(s => { (weeks[s.week] = weeks[s.week] || []).push(s); });
     Object.keys(weeks).forEach(w => {
       const days = weeks[w];
       const range = `${shortDate(days[0].date)} to ${shortDate(days[days.length - 1].date)}`;
@@ -494,6 +558,9 @@
     const msgs = LS.get(chatKey(), []);
     msgs.push({ role: 'ai', text: full, at: Date.now() });
     LS.set(chatKey(), msgs);
+
+    // The coach may have changed the plan in a background pass; poll for it and re-render.
+    [3000, 7000, 12000, 18000].forEach(ms => setTimeout(refreshPlan, ms));
   }
   $('#chat-send').addEventListener('click', sendChat);
   $('#chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
@@ -526,8 +593,18 @@
     } catch { return false; }
   }
   function coachContext() {
-    const s = sessionFor(TODAY);
-    return { name: user().name, goals: user().goals, streak: computeStreak(), today: s ? { focus: s.focus, blocks: s.blocks } : null };
+    const win = effectiveSessions().filter(s => {
+      const d = daysBetween(TODAY, s.date);
+      return d >= -3 && d <= 12;
+    });
+    return {
+      name: user().name, goals: user().goals, streak: computeStreak(),
+      today: TODAY,
+      plan: win.map(s => ({
+        date: s.date, day: s.day, focus: s.focus, window: s.window,
+        blocks: s.blocks.map(b => ({ time: b.time, title: b.title, detail: b.detail, minutes: b.minutes, tag: b.tag })),
+      })),
+    };
   }
   async function maybeAiFeedback(session, banner) {
     if (!CFG.BRIDGE_URL) return;
@@ -711,6 +788,7 @@
   function boot() {
     LS.set('pt.currentUser', currentUserId);
     renderAll();
+    refreshPlan(); // pull any coach-made schedule changes
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW reg failed', e));
     }
